@@ -39,7 +39,6 @@ class Lecture:
         >>> print(Lecture('Пр512', 'Психология', 'Челнокова А.В.', '09.09-07.12', '17:20')
         '18:50'
         """
-
         start_hours, start_minutes = self.start_time.split(':')
         start_overall = int(start_hours)*60+int(start_minutes)
         end_overall = start_overall + 90
@@ -70,7 +69,6 @@ class Lecture:
         Example's date is 29.09.2024 and is sunday. 
         Returns true because this lecture can take place on nearest Tuesday (01.10.2024).
         """
-
         start_date, end_date = self.date.split('-')
         start_day, start_month = map(int, start_date.split('.'))
         end_day, end_month = map(int, end_date.split('.'))
@@ -97,7 +95,6 @@ class Lecture:
         >>> Lecture('Пр512', 'Психология', 'Челнокова А.В.', '09.09-07.12', '17:20').print_lecture_data()
         '17:20 - 18:50 | Психология в Пр512 | Челнокова А.В.'
         """
-
         print(f'{self.start_time} - {self.end_time} | {self.name} в {self.room} | {self.teacher}')
     
 
@@ -111,7 +108,6 @@ class Day:
         name (str): Name of this day. ('Wednesday')
         day_index (int): Index of this day. (e.g. Monday = 0 ... Sunday = 6)
     """
-
     TIME_TABLE = ['8:30', '10:10', '12:00', '14:00', '15:40', '17:20', '19:00', '20:40']
 
     def __init__(self, day_index: int, lectures: list[Lecture] | None = None) -> None:
@@ -126,8 +122,10 @@ class Day:
     def add_lecture(self, lecture: Lecture) -> None:
         """
         Adds a lecture to lectures list.
-        """
 
+        Args:
+            lecture (Lecture): Lecture that is going to be added.
+        """
         self.lectures.append(lecture)
 
     def print_all_lectures(self) -> None:
@@ -171,7 +169,6 @@ class Week:
         Function used to set up all days from Monday to Sunday.
         Every day has 0 lectures in it. 
         """
-
         for day_index in range(7):
             self.days[day_index] = Day(day_index)
 
@@ -214,6 +211,8 @@ class Group:
     def add_student(self, student: Student) -> None:
         """
         Adds a student to students list.
-        """
 
+        Args:
+            student (Student): Student that is going to be added.
+        """
         self.students.append(student)
