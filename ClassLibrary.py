@@ -1,8 +1,12 @@
 import datetime
 
 class Student:
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, group: str, subgroup: str) -> None:
         self.name = name
+        self.group = group
+        self.subgroup = subgroup
+        self.group_page = 1
+
 
 
 class Lecture:
@@ -15,15 +19,17 @@ class Lecture:
         teacher (str): Initials of teacher that will give this lecture.
         date (str): Start and end when this lecture can take place. In format of '%D.%M-%D.%M'
         start_time (str): Time when lecture will start. In format of '%H:%M:02'
+        subgroup (str): Subgroup that has this lecture.
         end_time (str): Time when lecture will end. Is automatically assigned with __init__()
     """
 
-    def __init__(self, room: str, name: str, teacher: str, date: str, start_time: str) -> None:
+    def __init__(self, room: str, name: str, teacher: str, date: str, start_time: str, subgroup: str) -> None:
         self.room = room
         self.name = name
         self.teacher = teacher
         self.date = date
         self.start_time = start_time
+        self.subgroup = subgroup
         self.end_time = self.get_end_time()
 
 
@@ -47,7 +53,7 @@ class Lecture:
         return f'{end_hours}:{end_minutes:02}'
     
 
-    def is_lecture_date_valid(self, week_day_index: int) -> bool:
+    def is_lecture_date_valid(self, week_day_index: int, subgroup) -> bool:
         """Check if nearest lecture can take place on a nearest Day.
 
         Gets starting date and ending date from self.date.
@@ -69,6 +75,10 @@ class Lecture:
         Example's date is 29.09.2024 and is sunday. 
         Returns true because this lecture can take place on nearest Tuesday (01.10.2024).
         """
+        if subgroup != self.subgroup:
+            return False
+        return True
+
         start_date, end_date = self.date.split('-')
         start_day, start_month = map(int, start_date.split('.'))
         end_day, end_month = map(int, end_date.split('.'))
@@ -88,14 +98,14 @@ class Lecture:
         return end_date >= check_date >= start_date
 
 
-    def print_lecture_data(self) -> None:
+    def get_lecture_data(self) -> str:
         """ 
-        Prints all of needed lecture's data in format '%START_TIME - %END_TIME | %LECTURE_NAME in %LECTURE_ROOM | %TEACHER_NAME'.
+        Returns all of needed lecture's data in format '%START_TIME - %END_TIME | %LECTURE_NAME in %LECTURE_ROOM | %TEACHER_NAME'.
 
         >>> Lecture('Пр512', 'Психология', 'Челнокова А.В.', '09.09-07.12', '17:20').print_lecture_data()
         '17:20 - 18:50 | Психология в Пр512 | Челнокова А.В.'
         """
-        print(f'{self.start_time} - {self.end_time} | {self.name} в {self.room} | {self.teacher}')
+        return f'{self.start_time} - {self.end_time} | {self.name} в {self.room} | {self.teacher}'
     
 
 class Day:
@@ -128,19 +138,19 @@ class Day:
         """
         self.lectures.append(lecture)
 
-    def print_all_lectures(self) -> None:
+    def get_all_lectures(self, subgroup) -> str:
         """
-        Prints formatted string of all lectures.
-        Nothing is printed if day has 0 lectures.
+        Returns formatted string of all lectures.
+        Nothing is returned if day has 0 lectures.
         """
         if len(self.lectures) == 0:
-            return
+            return ''
 
-        print(f'{self.name:-^20}')
+        result = f'{self.name:-^20}\n'
         for lecture in self.lectures:
-            if lecture.is_lecture_date_valid(self.day_index):
-                lecture.print_lecture_data()
-        print()
+            if lecture.is_lecture_date_valid(self.day_index, subgroup):
+                result += f'{lecture.get_lecture_data()}\n'
+        return result
 
 
 class Week:
@@ -172,14 +182,15 @@ class Week:
         for day_index in range(7):
             self.days[day_index] = Day(day_index)
 
-    def print_week_lectures(self) -> None:
+    def get_week_lectures(self, subgroup) -> str:
         """
-        Prints all lectures within a week. 
-        Goes through all Days and calls Day.print_all_lectures() function. 
+        Returns all lectures within a week. 
+        Goes through all Days and calls Day.get_all_lectures() function. 
         """
-
+        result = ''
         for day in self.days:
-            day.print_all_lectures()
+            result += f'{day.get_all_lectures(subgroup)}\n'
+        return result
 
 
 class Group:
@@ -190,10 +201,12 @@ class Group:
     Attributes:
         name (str): The name of group.
         id (int): Id of a group.
+        subgroups (list): List of possible subgroups ('а', 'б', 'в')
+        weeks (list): List of two possible weeks. (Odd and even)
         students (list): List of all students in a group. By default is []
     """
 
-    def __init__(self, name: str, id: int, weeks: list[Week] | None = None, students: list[Student]  | None = None) -> None:
+    def __init__(self, name: str, id: int, weeks: list[Week] | None = None, students: list[Student] | None = None) -> None:
         if students is None:
             self.students = []
         else:
@@ -208,6 +221,7 @@ class Group:
         self.name = name
         self.id = id
 
+
     def add_student(self, student: Student) -> None:
         """
         Adds a student to students list.
@@ -216,3 +230,7 @@ class Group:
             student (Student): Student that is going to be added.
         """
         self.students.append(student)
+
+
+    def update_subgroups(self, subgroups: list[str]) -> None:
+        self.subgroups = subgroups

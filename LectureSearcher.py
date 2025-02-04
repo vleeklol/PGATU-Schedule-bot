@@ -1,5 +1,3 @@
-import os
-import telebot
 from time import sleep
 
 from io import BytesIO
@@ -30,18 +28,6 @@ def set_up_webdriver() -> webdriver:
     custom_driver.get(WEBSITE_URL)
 
     return custom_driver
-
-
-def take_screenshot(custom_driver) -> None:
-    """
-    Takes a screenshot with resolution of 574x730.
-
-    Args:
-        custom_driver (selenium.webdriver): Driver that handles webpages.
-    """
-    screenshot_binary = custom_driver.find_element(by=By.ID, value='gridcontainer').screenshot_as_png
-    screenshot = Image.open(BytesIO(screenshot_binary)).crop((0, 0, 574, 730))  # 594x772 is the average size of grid for 640x1280
-    screenshot.save(f'Screenshots/{uuid4().hex}.png')
 
 
 def click_group_select(custom_driver) -> None:
@@ -84,8 +70,6 @@ def get_groups_data(custom_driver) -> dict:
         group_name = group_name[:group_name.find('(')]
         group_id = element.get_attribute('data-value')
         groups[group_name] = cl.Group(group_name, int(group_id))
-        if group_name == NEEDED_GROUP and GET_ONLY_NEEDED:
-            break
 
     return groups
 
@@ -109,7 +93,7 @@ def change_group_value(custom_driver, group: cl.Group) -> None:
         raise NameError(f"{group.name} wasn't found correctly.")
 
 
-def get_week_table(custom_driver) -> cl.Week:
+def get_week_table(custom_driver: webdriver.Chrome, subgroups) -> cl.Week:
     """
     This function finds all lectures in schedule for currently selected group by webdriver.
     Outputs whole week full of lectures.
@@ -120,7 +104,6 @@ def get_week_table(custom_driver) -> cl.Week:
     Returns:
         ClassLibrary.Week: Week with whole schedule.
     """
-
     lecture_elements = custom_driver.find_elements(by=By.CSS_SELECTOR, value='td.lesson-lec, td.lesson-lab, td.lesson-prac')
 
     # There are 8 possible lectures in one day. Lectures can split into odd week's and even week's lectures.
@@ -128,8 +111,8 @@ def get_week_table(custom_driver) -> cl.Week:
     grid_elements = custom_driver.find_elements(by=By.CSS_SELECTOR, value='tr.noselect')
 
     # We can get index of a week by checking an element with value of 'Текущая неделя: 1'.
-    week_index = int(custom_driver.find_element(by=By.XPATH, value='/html/body/div[3]/div/div/h4').text[-1])
-    week = cl.Week(week_index)
+    current_week_index = int(custom_driver.find_element(by=By.XPATH, value='/html/body/div[3]/div/div/h4').text[-1]) - 1
+    week = cl.Week(current_week_index)
 
     for element in lecture_elements:
         lecture_data = element.text.split('\n')
@@ -137,7 +120,9 @@ def get_week_table(custom_driver) -> cl.Week:
         lecture_data.insert(0, lecture_data[0][:split_index])
         lecture_data[1] = lecture_data[1][split_index+1:]
 
-        element_index = grid_elements.index(element.find_element(by=By.XPATH, value='./..'))
+        parent_element = element.find_element(by=By.XPATH, value='./..')
+        element_index = grid_elements.index(parent_element)
+        
 
         # Each two grid places represent one time.
         # First and second place means that lecture will start at 8:30
@@ -153,15 +138,33 @@ def get_week_table(custom_driver) -> cl.Week:
         
         day_index = element_index//16
 
-        week.days[day_index].add_lecture(cl.Lecture(room, lecture_name, teacher, date, time))
-    
+        # This whole section is used to determine lecture's subgroup.
+        # And then the lecture will be added to week lecture list with all of its data.
+        subgroup_counter = 0
+        row_elements = parent_element.find_elements(by=By.CSS_SELECTOR, value='td.noselect')
+        for row_element in row_elements:
+            # Column span - basically is the width of a cell in the grid, this may be an empty cell or a lecture.
+            # If attribute 'colspan' is None, then it is of a 1 width.
+            try:
+                column_span = int(row_element.get_attribute('colspan')) 
+            except TypeError:
+                column_span = 1
+            
+            if row_element == element:
+                for i in range(column_span):
+                    week.days[day_index].add_lecture(cl.Lecture(room, lecture_name, teacher, date, time, subgroups[subgroup_counter + i]))
+                subgroup_counter = 0
+                break
+            
+            subgroup_counter += column_span
+
     return week
     
 
 def update_lectures(custom_driver, groups: dict[str: cl.Group]) -> None:
     """
     Updates a dictionary of groups so that every group has a full schedule.
-    Usually takes around 3-5 minutes to complete.
+    Usually takes around 3-5 minutes to complete. (on a 1 second delay)
 
     Args:
         custom_driver (selenium.webdriver): Driver that handles webpages.
@@ -171,25 +174,29 @@ def update_lectures(custom_driver, groups: dict[str: cl.Group]) -> None:
         change_group_value(custom_driver, group)
         click_refresh(custom_driver) 
 
-        # There has to be atleast half a second to make sure that website has updated.
-        sleep(0.5)
+        # There has to be atleast a second to make sure that website has updated.
+        sleep(3)
 
-        week = get_week_table(custom_driver)
+        subgroups = list(subgroup.text for subgroup in custom_driver.find_elements(by=By.CSS_SELECTOR, value='#timetable > thead > tr:nth-child(2) > *'))
+        group.update_subgroups(subgroups)
+
+        week = get_week_table(custom_driver, subgroups)
         group.weeks.append(week)
 
 
+def load_all_data() -> dict[str: cl.Group]:
+    driver = set_up_webdriver()
+    click_group_select(driver)
+    group_data: dict = get_groups_data(driver)
+    update_lectures(driver, group_data)
+
+    driver.quit()
+
+    return group_data
+
+
 WEBSITE_URL = 'http://shedule.psaa.ru/'
-NEEDED_GROUP = 'ПИНб-1'
-NEED_SCREENSHOT = False
-GET_ONLY_NEEDED = False
 
 
-driver = set_up_webdriver()
-click_group_select(driver)
-group_data: dict = get_groups_data(driver)
-update_lectures(driver, group_data)
-
-if NEED_SCREENSHOT:
-    take_screenshot(driver)
-
-driver.quit()
+if __name__ == '__main__':
+    groups = load_all_data()
